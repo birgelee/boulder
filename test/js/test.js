@@ -375,7 +375,7 @@ function validateHttp01(challenge) {
   }
   state.httpServer = http.createServer(httpResponder)
   if (/localhost/.test(state.newRegistrationURL)) {
-    state.httpServer.listen(5002)
+    state.httpServer.listen(80)
   } else {
     state.httpServer.listen(80)
   }

@@ -4,7 +4,7 @@
     "userAgent": "boulder",
     "debugAddr": ":8004",
     "portConfig": {
-      "httpPort": 5002,
+      "httpPort": 80,
       "httpsPort": 5001,
       "tlsPort": 5001
     },
@@ -15,8 +15,13 @@
     "amqp": {
       "serverURLFile": "test/secrets/amqp_url",
       "insecure": true,
-      "serviceQueue": "VA.server"
-    }
+      "serviceQueue": "VA.server",
+      "RA": {
+        "server": "RA.server",
+        "rpcTimeout": "15s"
+      }
+    },
+    "proxyURLList": [""]
   },
 
   "statsd": {
@@ -29,7 +34,7 @@
   },
 
   "common": {
-    "dnsResolver": "127.0.0.1:8053",
+    "dnsResolver": "8.8.8.8:53",
     "dnsTimeout": "1s",
     "dnsAllowLoopbackAddresses": true
   }

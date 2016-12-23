@@ -42,6 +42,9 @@ type config struct {
 
 		// Feature flag to enable enforcement of CAA SERVFAILs.
 		CAASERVFAILExceptions string
+
+		// A list of proxy urls
+		ProxyURLList []string
 	}
 
 	Statsd cmd.StatsdConfig
@@ -125,7 +128,13 @@ func main() {
 		resolver = r
 	}
 
+	var proxyList = c.VA.ProxyURLList
+	if proxyList == nil {
+		proxyList = []string{""}
+	}
+
 	vai := va.NewValidationAuthorityImpl(
+		proxyList,
 		pc,
 		sbc,
 		cdrClient,

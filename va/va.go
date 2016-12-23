@@ -1,6 +1,9 @@
 package va
 
 import (
+	//"os/exec"
+	//"os"
+
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
@@ -43,6 +46,7 @@ var validationTimeout = time.Second * 5
 
 // ValidationAuthorityImpl represents a VA
 type ValidationAuthorityImpl struct {
+	proxyList    []string
 	log          blog.Logger
 	dnsResolver  bdns.DNSResolver
 	issuerDomain string
@@ -58,6 +62,7 @@ type ValidationAuthorityImpl struct {
 
 // NewValidationAuthorityImpl constructs a new VA
 func NewValidationAuthorityImpl(
+	httpProxies []string,
 	pc *cmd.PortConfig,
 	sbc SafeBrowsing,
 	cdrClient *cdr.CAADistributedResolver,
@@ -69,6 +74,7 @@ func NewValidationAuthorityImpl(
 	logger blog.Logger,
 ) *ValidationAuthorityImpl {
 	return &ValidationAuthorityImpl{
+		proxyList:    httpProxies,
 		log:          logger,
 		dnsResolver:  resolver,
 		issuerDomain: issuerDomain,
@@ -123,9 +129,13 @@ type dialer struct {
 	record core.ValidationRecord
 }
 
-func (d *dialer) Dial(_, _ string) (net.Conn, error) {
+
+// Personally I dislike implementing the custom dialer because it feels hacky (and is officially deprecated).
+// The same effect they could be going for could be done by rewritting the url passed to tansport to use an ip addr as a host instead of a domain name.
+func (d *dialer) Dial(network, addr string) (net.Conn, error) {
 	realDialer := net.Dialer{Timeout: validationTimeout}
 	return realDialer.Dial("tcp", net.JoinHostPort(d.record.AddressUsed.String(), d.record.Port))
+	
 }
 
 // resolveAndConstructDialer gets the preferred address using va.getAddr and returns
@@ -149,7 +159,7 @@ func (va *ValidationAuthorityImpl) resolveAndConstructDialer(ctx context.Context
 
 // Validation methods
 
-func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier core.AcmeIdentifier, path string, useTLS bool, input core.Challenge) ([]byte, []core.ValidationRecord, *probs.ProblemDetails) {
+func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier core.AcmeIdentifier, path string, useTLS bool, input core.Challenge, httpProxy string) ([]byte, []core.ValidationRecord, *probs.ProblemDetails) {
 	challenge := input
 
 	host := identifier.Value
@@ -173,7 +183,11 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 	}
 
 	va.log.AuditInfo(fmt.Sprintf("Attempting to validate %s for %s", challenge.Type, url))
+
+	
 	httpRequest, err := http.NewRequest("GET", url.String(), nil)
+	
+
 	if err != nil {
 		va.log.Info(fmt.Sprintf("Failed to parse URL '%s'. err=[%#v] errStr=[%s]", identifier, err, err))
 		return nil, nil, probs.Malformed("URL provided for HTTP was invalid")
@@ -190,17 +204,56 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 		return nil, validationRecords, prob
 	}
 
-	tr := &http.Transport{
+	var tr *http.Transport
+
+	if httpProxy != "" {
+		proxyUrl, _ := url.Parse(httpProxy)
+
+
+		tr = &http.Transport{
+		// Use a proxy
+			Proxy: http.ProxyURL(proxyUrl),
+
 		// We are talking to a client that does not yet have a certificate,
 		// so we accept a temporary, invalid one.
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+
 		// We don't expect to make multiple requests to a client, so close
 		// connection immediately.
-		DisableKeepAlives: true,
+			DisableKeepAlives: true,
+
+		// This is deprecated. DialContext is the preferred use. 
+		// This cannot be used with a proxy because of a hacky hard coded dialer implementation.
+		// Intercept Dial in order to connect to the IP address we
+		// select.
+		//Dial: dialer.Dial,
+
+
+		}
+	} else {
+		tr = &http.Transport{
+		// Use a proxy
+			//Proxy: http.ProxyURL(proxyUrl),
+
+		// We are talking to a client that does not yet have a certificate,
+		// so we accept a temporary, invalid one.
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+
+		// We don't expect to make multiple requests to a client, so close
+		// connection immediately.
+			DisableKeepAlives: true,
+
+		// This is deprecated. DialContext is the preferred use. 
+		// This cannot be used with a proxy because of a hacky hard coded dialer implementation.
 		// Intercept Dial in order to connect to the IP address we
 		// select.
 		Dial: dialer.Dial,
+
+
+		}
 	}
+	
+	
 
 	// Some of our users use mod_security. Mod_security sees a lack of Accept
 	// headers as bot behavior and rejects requests. While this is a bug in
@@ -285,7 +338,6 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 		return nil, validationRecords, probs.Unauthorized(fmt.Sprintf("Invalid response from %s [%s]: %d",
 			url.String(), dialer.record.AddressUsed, httpResponse.StatusCode))
 	}
-
 	return body, validationRecords, nil
 }
 
@@ -351,23 +403,90 @@ func (va *ValidationAuthorityImpl) validateHTTP01(ctx context.Context, identifie
 		return nil, probs.Malformed("Identifier type for HTTP validation was not DNS")
 	}
 
-	// Perform the fetch
+	
 	path := fmt.Sprintf(".well-known/acme-challenge/%s", challenge.Token)
-	body, validationRecords, prob := va.fetchHTTP(ctx, identifier, path, false, challenge)
-	if prob != nil {
-		return validationRecords, prob
-	}
 
-	payload := strings.TrimRight(string(body), whitespaceCutset)
+	// Test exec functionality
+	/*app := "bash"
+    //app := "buah"
 
-	if payload != challenge.ProvidedKeyAuthorization {
-		errString := fmt.Sprintf("The key authorization file from the server did not match this challenge [%v] != [%v]",
-			challenge.ProvidedKeyAuthorization, payload)
+    arg0 := "bash-verify-commands.sh"
+
+    startTime := time.Now().UnixNano()
+    fmt.Print("start Time:")
+    fmt.Print(startTime / int64(time.Millisecond))
+    fmt.Print("\n\n\n\n")
+
+    //cmd := exec.Command(app, arg0)
+
+    exec.Command(app, arg0).Start()
+
+    endTime := time.Now().UnixNano()
+    fmt.Print("Time diff:")
+    fmt.Print((endTime - startTime) / int64(time.Millisecond))
+    fmt.Print("\n\n\n\n")
+
+    //time.Sleep(5000 * time.Millisecond)
+    //stdout, err := cmd.Output()
+	/*if err != nil {
+        return nil, probs.Unauthorized(err.Error())
+    }
+
+    fmt.Println(string(stdout))*/
+
+
+	// Henry's sample error. Should be removed for real usage.
+	if identifier.Value == "ec2.test-cert.tk" {
+		errString := fmt.Sprintf("THIS IS NOT A REAL ERROR. The domain requested was ec2.test-cert.tk. This error is inserted as a test. Remove for production. Identifier: %s", identifier)
 		va.log.Info(fmt.Sprintf("%s for %s", errString, identifier))
-		return validationRecords, probs.Unauthorized(errString)
+		return nil, probs.Unauthorized(errString)
 	}
 
-	return validationRecords, nil
+	/*var proxies [3]string
+	proxies[0] = "http://asia.test-cert.tk:7777"
+	proxies[1] = "http://ec2.test-cert.tk:7777"
+	proxies[2] = ""*/
+
+	var finalValidationRecords []core.ValidationRecord
+
+	for i := 0; i < len(va.proxyList); i++ {
+
+		// Perform the fetch
+		body, validationRecords, prob := va.fetchHTTP(ctx, identifier, path, false, challenge, va.proxyList[i])
+		finalValidationRecords = validationRecords
+
+		if prob != nil {
+			return validationRecords, prob
+		}
+
+		payload := strings.TrimRight(string(body), whitespaceCutset)
+
+		if payload != challenge.ProvidedKeyAuthorization {
+
+			var errString string
+			if va.proxyList[i] == "" {
+				errString = fmt.Sprintf("The key authorization file from the server did not match this challenge [%v] != [%v]",
+					challenge.ProvidedKeyAuthorization, payload)
+			} else {
+				errString = fmt.Sprintf("The key authorization file from the server when accessed from the proxy %s did not match this challenge [%v] != [%v]",
+					va.proxyList[i], challenge.ProvidedKeyAuthorization, payload)
+			}
+			
+
+			if va.proxyList[i] == "" {
+				va.log.Info(fmt.Sprintf("%s for %s", errString, identifier))
+			} else {
+				va.log.Info(fmt.Sprintf("%s for %s", errString, identifier))
+			}
+
+			return validationRecords, probs.Unauthorized(errString)
+		}
+
+
+	}
+	
+
+	return finalValidationRecords, nil
 }
 
 func (va *ValidationAuthorityImpl) validateTLSSNI01(ctx context.Context, identifier core.AcmeIdentifier, challenge core.Challenge) ([]core.ValidationRecord, *probs.ProblemDetails) {

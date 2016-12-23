@@ -111,12 +111,6 @@ function run_unit_tests() {
 
 #
 # Run Go Vet, a correctness-focused static analysis tool
-#
-if [[ "$RUN" =~ "vet" ]] ; then
-  start_context "vet"
-  run_and_expect_silence go vet ${TESTPATHS}
-  end_context #vet
-fi
 
 #
 # Ensure all files are formatted per the `go fmt` tool
