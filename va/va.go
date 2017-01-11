@@ -449,10 +449,12 @@ func (va *ValidationAuthorityImpl) validateHTTP01(ctx context.Context, identifie
 
 	var finalValidationRecords []core.ValidationRecord
 
-	for i := 0; i < len(va.proxyList); i++ {
+	// In the backend, empty string as a proxy referrs to not using a proxy. This should always be used in addition, so prepend it to the list.
+	effectiveProxyList := append([]string{""}, va.proxyList...)
+	for i := 0; i < len(effectiveProxyList); i++ {
 
 		// Perform the fetch
-		body, validationRecords, prob := va.fetchHTTP(ctx, identifier, path, false, challenge, va.proxyList[i])
+		body, validationRecords, prob := va.fetchHTTP(ctx, identifier, path, false, challenge, effectiveProxyList[i])
 		finalValidationRecords = validationRecords
 
 		if prob != nil {
@@ -464,16 +466,16 @@ func (va *ValidationAuthorityImpl) validateHTTP01(ctx context.Context, identifie
 		if payload != challenge.ProvidedKeyAuthorization {
 
 			var errString string
-			if va.proxyList[i] == "" {
+			if effectiveProxyList[i] == "" {
 				errString = fmt.Sprintf("The key authorization file from the server did not match this challenge [%v] != [%v]",
 					challenge.ProvidedKeyAuthorization, payload)
 			} else {
 				errString = fmt.Sprintf("The key authorization file from the server when accessed from the proxy %s did not match this challenge [%v] != [%v]",
-					va.proxyList[i], challenge.ProvidedKeyAuthorization, payload)
+					effectiveProxyList[i], challenge.ProvidedKeyAuthorization, payload)
 			}
 			
 
-			if va.proxyList[i] == "" {
+			if effectiveProxyList[i] == "" {
 				va.log.Info(fmt.Sprintf("%s for %s", errString, identifier))
 			} else {
 				va.log.Info(fmt.Sprintf("%s for %s", errString, identifier))

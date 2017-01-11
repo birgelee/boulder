@@ -130,7 +130,7 @@ func main() {
 
 	var proxyList = c.VA.ProxyURLList
 	if proxyList == nil {
-		proxyList = []string{""}
+		proxyList = []string{}
 	}
 
 	vai := va.NewValidationAuthorityImpl(

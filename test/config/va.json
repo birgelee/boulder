@@ -21,7 +21,7 @@
         "rpcTimeout": "15s"
       }
     },
-    "proxyURLList": [""]
+    "proxyURLList": []
   },
 
   "statsd": {
