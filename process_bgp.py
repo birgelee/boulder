@@ -9,13 +9,16 @@ cursor = conn.cursor()
 
 while (nextUpdateExists()):
 	update = fetchNextUpdate()
-	if (update['type'] != 'A'):
-		continue
-	asPath = conn.escape_string(update['as-path'])
-	asPathLength = asPath.count(' ') + 1
-	timeList = ' '.join([str(update['time'])] * asPathLength)
-	prefix = conn.escape_string(update['prefix'])
-	cursor.execute("INSERT INTO bgpPrefixUpdates (prefix, asPath, timeList) VALUES ('{}', '{}', '{}') ON DUPLICATE KEY UPDATE asPath='{}', timeList='{}'".format(prefix, asPath, timeList, asPath, timeList))
+	if (update['type'] == 'A'):
+		asPath = conn.escape_string(update['as-path'])
+		asPathLength = asPath.count(' ') + 1
+		timeList = ' '.join([str(update['time'])] * asPathLength)
+		prefix = conn.escape_string(update['prefix'])
+		cursor.execute("INSERT INTO bgpPrefixUpdates (prefix, asPath, timeList) VALUES ('{}', '{}', '{}') ON DUPLICATE KEY UPDATE asPath='{}', timeList='{}'".format(prefix, asPath, timeList, asPath, timeList))
+	elif (update['type'] == 'W'):
+		prefix = conn.escape_string(update['prefix'])
+		cursor.execute("DELETE FROM bgpPrefixUpdates WHERE prefix='{}'".format(prefix))
+		print("DELETE FROM bgpPrefixUpdates WHERE prefix='{}'".format(prefix))
 
 
 #cursor.execute("SELECT * FROM bgpPrefixUpdates")
