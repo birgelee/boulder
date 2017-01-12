@@ -193,6 +193,13 @@ func ReportDbConnCount(dbMap *gorp.DbMap, statter metrics.Scope) {
 	}
 }
 
+type BGPUpdate struct {
+    Prefix      string `db:"prefix"`
+    Aspath 		string `db:"asPath"`
+    Timelist    string `db:"timeList"`
+}
+
+
 // initTables constructs the table map for the ORM.
 // NOTE: For tables with an auto-increment primary key (SetKeys(true, ...)),
 // it is very important to declare them as a such here. It produces a side
@@ -214,6 +221,7 @@ func initTables(dbMap *gorp.DbMap) {
 	dbMap.AddTableWithName(authzModel{}, "authz").SetKeys(false, "ID")
 	dbMap.AddTableWithName(challModel{}, "challenges").SetKeys(true, "ID").SetVersionCol("LockCol")
 	dbMap.AddTableWithName(issuedNameModel{}, "issuedNames").SetKeys(true, "ID")
+	dbMap.AddTableWithName(BGPUpdate{}, "bgpPrefixUpdates").SetKeys(false, "prefix")
 	dbMap.AddTableWithName(core.Certificate{}, "certificates").SetKeys(false, "Serial")
 	dbMap.AddTableWithName(core.CertificateStatus{}, "certificateStatus").SetKeys(false, "Serial").SetVersionCol("LockCol")
 	dbMap.AddTableWithName(core.CRL{}, "crls").SetKeys(false, "Serial")

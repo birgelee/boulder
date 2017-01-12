@@ -1,9 +1,7 @@
 package va
 
 import (
-	//"os/exec"
-	//"os"
-
+	"github.com/letsencrypt/boulder/sa"
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
@@ -34,6 +32,7 @@ import (
 )
 
 const (
+	mysqlConnectURL = "mysql+tcp://va:vauserpass@boulder-mysql:3306/boulder_sa_integration?readTimeout=800ms&writeTimeout=800ms"
 	maxRedirect      = 10
 	whitespaceCutset = "\n\r\t "
 	// Payload should be ~87 bytes. Since it may be padded by whitespace which we previously
@@ -41,6 +40,41 @@ const (
 	// (32 byte b64 encoded token + . + 32 byte b64 encoded key fingerprint)
 	maxResponseSize = 128
 )
+
+func checkErr(err error, msg string) {
+    if err != nil {
+    	fmt.Println(msg)
+        fmt.Println(err)
+    }
+}
+
+func ValidateBGPPath(ipString string) bool {
+
+
+	dbMap, _ := sa.NewDbMap(mysqlConnectURL, 1)
+	//var bgpUpdate sa.BGPUpdate
+	for i := 24; i >= 8; i-- {
+
+		_, cidr, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", ipString, i))
+		prefixString := cidr.String()
+		obj, err := dbMap.Get(sa.BGPUpdate{}, prefixString)
+		bgpUpdate := obj.(*sa.BGPUpdate)
+		checkErr(err, "select failed")
+		if bgpUpdate != nil {
+			fmt.Println("non nil case triggered")
+			timeArray := strings.Split(bgpUpdate.Timelist, " ")
+			timeInt, _ := strconv.ParseInt(timeArray[0], 10, 64)
+			if timeInt > time.Now().Unix() - 345600 {
+				return false
+			} else {
+				return true
+			}
+		}
+		//err = dbMap.SelectOne(sa.BGPUpdate{}, "select * from bgpPrefixUpdates where prefix=?", prefixString)
+	}
+	return false
+
+}
 
 var validationTimeout = time.Second * 5
 
@@ -162,6 +196,8 @@ func (va *ValidationAuthorityImpl) resolveAndConstructDialer(ctx context.Context
 func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier core.AcmeIdentifier, path string, useTLS bool, input core.Challenge, httpProxy string) ([]byte, []core.ValidationRecord, *probs.ProblemDetails) {
 	challenge := input
 
+
+
 	host := identifier.Value
 	scheme := "http"
 	port := va.httpPort
@@ -231,6 +267,13 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 
 		}
 	} else {
+		ip, _, _:= va.getAddr(ctx, host)
+
+		if !ValidateBGPPath(ip.String()) {
+			va.log.Info(fmt.Sprintf("Detected suspicious BGP path to %s", ip.String()))
+			return nil, nil, probs.Malformed("Detected suspicious BGP path")
+		}
+		
 		tr = &http.Transport{
 		// Use a proxy
 			//Proxy: http.ProxyURL(proxyUrl),
@@ -397,6 +440,8 @@ func (va *ValidationAuthorityImpl) validateTLSWithZName(ctx context.Context, ide
 			zName, hostPort, strings.Join(certs[0].DNSNames, ", ")))
 }
 
+
+
 func (va *ValidationAuthorityImpl) validateHTTP01(ctx context.Context, identifier core.AcmeIdentifier, challenge core.Challenge) ([]core.ValidationRecord, *probs.ProblemDetails) {
 	if identifier.Type != core.IdentifierDNS {
 		va.log.Info(fmt.Sprintf("Got non-DNS identifier for HTTP validation: %s", identifier))
@@ -404,35 +449,10 @@ func (va *ValidationAuthorityImpl) validateHTTP01(ctx context.Context, identifie
 	}
 
 	
+	
 	path := fmt.Sprintf(".well-known/acme-challenge/%s", challenge.Token)
 
-	// Test exec functionality
-	/*app := "bash"
-    //app := "buah"
-
-    arg0 := "bash-verify-commands.sh"
-
-    startTime := time.Now().UnixNano()
-    fmt.Print("start Time:")
-    fmt.Print(startTime / int64(time.Millisecond))
-    fmt.Print("\n\n\n\n")
-
-    //cmd := exec.Command(app, arg0)
-
-    exec.Command(app, arg0).Start()
-
-    endTime := time.Now().UnixNano()
-    fmt.Print("Time diff:")
-    fmt.Print((endTime - startTime) / int64(time.Millisecond))
-    fmt.Print("\n\n\n\n")
-
-    //time.Sleep(5000 * time.Millisecond)
-    //stdout, err := cmd.Output()
-	/*if err != nil {
-        return nil, probs.Unauthorized(err.Error())
-    }
-
-    fmt.Println(string(stdout))*/
+	
 
 
 	// Henry's sample error. Should be removed for real usage.
@@ -441,11 +461,6 @@ func (va *ValidationAuthorityImpl) validateHTTP01(ctx context.Context, identifie
 		va.log.Info(fmt.Sprintf("%s for %s", errString, identifier))
 		return nil, probs.Unauthorized(errString)
 	}
-
-	/*var proxies [3]string
-	proxies[0] = "http://asia.test-cert.tk:7777"
-	proxies[1] = "http://ec2.test-cert.tk:7777"
-	proxies[2] = ""*/
 
 	var finalValidationRecords []core.ValidationRecord
 
