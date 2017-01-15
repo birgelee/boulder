@@ -22,7 +22,7 @@ stream.add_filter('peer-asn', '24482')
 
 
 # select the time interval to process:
-stream.add_interval_filter(int(time.time()) - 0, 0)
+stream.add_interval_filter(int(time.time()) - 1000, 0)
 
 # start the stream
 stream.start()

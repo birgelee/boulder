@@ -50,6 +50,11 @@ func checkErr(err error, msg string) {
 
 func ValidateBGPPath(ipString string) bool {
 
+	/*
+	// Testing code to test on a prefix that had a recent bgp update.
+	if ipString == "76.94.66.116" {
+		ipString = "95.173.159.1"
+	}*/
 
 	dbMap, _ := sa.NewDbMap(mysqlConnectURL, 1)
 	//var bgpUpdate sa.BGPUpdate
@@ -58,19 +63,22 @@ func ValidateBGPPath(ipString string) bool {
 		_, cidr, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", ipString, i))
 		prefixString := cidr.String()
 		obj, err := dbMap.Get(sa.BGPUpdate{}, prefixString)
-		bgpUpdate := obj.(*sa.BGPUpdate)
 		checkErr(err, "select failed")
-		if bgpUpdate != nil {
-			fmt.Println("non nil case triggered")
+		if obj != nil {
+			bgpUpdate := obj.(*sa.BGPUpdate)
+			fmt.Println(fmt.Sprintf("non nil case triggered on route to %s", prefixString))
+
 			timeArray := strings.Split(bgpUpdate.Timelist, " ")
 			timeInt, _ := strconv.ParseInt(timeArray[0], 10, 64)
+			fmt.Println(fmt.Sprintf("int time %d, unix now time %d.", timeInt, time.Now().Unix()))
 			if timeInt > time.Now().Unix() - 345600 {
 				return false
 			} else {
 				return true
 			}
+		} else {
+			fmt.Println(fmt.Sprintf("nil case on route to %s", prefixString))
 		}
-		//err = dbMap.SelectOne(sa.BGPUpdate{}, "select * from bgpPrefixUpdates where prefix=?", prefixString)
 	}
 	return false
 
@@ -271,7 +279,7 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 
 		if !ValidateBGPPath(ip.String()) {
 			va.log.Info(fmt.Sprintf("Detected suspicious BGP path to %s", ip.String()))
-			return nil, nil, probs.Malformed("Detected suspicious BGP path")
+			return nil, nil, probs.ConnectionFailure("Detected suspicious BGP path")
 		}
 		
 		tr = &http.Transport{
