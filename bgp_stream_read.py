@@ -1,4 +1,12 @@
 #!/usr/bin/env python
+# remove for production
+#stream.add_filter('prefix', '184.164.226.0/23')
+
+
+
+
+#stream.add_interval_filter(1482700017, 1483304817)
+
 
 
 from _pybgpstream import BGPStream, BGPRecord, BGPElem
@@ -7,22 +15,16 @@ import time
 
 # create a new bgpstream instance
 stream = BGPStream()
-
 # create a reusable bgprecord instance
 rec = BGPRecord()
-
 elem = None
-
-# configure the stream to retrieve Updates
+# configure the stream to retrieve Updates from the route-views listener.
 stream.add_filter('collector', 'route-views.sg')
-stream.add_filter('record-type','updates')
-# getting updates only from one peer gives that peers best route
+stream.add_filter('record-type','updates') # here we collect updates. This could be changed to ribs to instead acquire periodic snapshots of the RIBs.
+# getting updates only from one peer gives us only the perferred route of this peer and no rejected routes.
 stream.add_filter('peer-asn', '24482')
-
-
-
-# select the time interval to process:
-stream.add_interval_filter(int(time.time()) - 1000, 0)
+# select the time interval to process: 0 means continue to process live updates. - 345600 allows us to process a 4 day backlog of updates
+stream.add_interval_filter(int(time.time()) - 345600, 0)
 
 # start the stream
 stream.start()
@@ -42,7 +44,8 @@ def nextUpdateExists():
 def fetchNextUpdate():
 	global elem, rec
 	if (elem):
-		res = {'time': rec.time, 'prefix': elem.fields['prefix'] if 'prefix' in elem.fields else None, 'type': elem.type, 'as-path': elem.fields['as-path'] if 'as-path' in elem.fields else None}
+		res = {'time': rec.time, 'prefix': elem.fields['prefix'] if 'prefix' in elem.fields else None, 
+		'type': elem.type, 'as-path': elem.fields['as-path'] if 'as-path' in elem.fields else None}
 		elem = rec.get_next_elem()
 		return res
 	else:

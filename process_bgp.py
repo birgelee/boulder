@@ -14,15 +14,12 @@ while (nextUpdateExists()):
 		asPathLength = asPath.count(' ') + 1
 		timeList = ' '.join([str(update['time'])] * asPathLength)
 		prefix = conn.escape_string(update['prefix'])
-		cursor.execute("INSERT INTO bgpPrefixUpdates (prefix, asPath, timeList) VALUES ('{}', '{}', '{}') ON DUPLICATE KEY UPDATE asPath='{}', timeList='{}'".format(prefix, asPath, timeList, asPath, timeList))
+		cursor.execute("""INSERT INTO bgpPrefixUpdates (prefix, asPath, timeList) VALUES ('{}', '{}', '{}') 
+			ON DUPLICATE KEY UPDATE asPath='{}', timeList='{}'""".format(prefix, asPath, timeList, asPath, timeList))
 		conn.commit()
 		#print("INSERT INTO bgpPrefixUpdates (prefix, asPath, timeList) VALUES ('{}', '{}', '{}') ON DUPLICATE KEY UPDATE asPath='{}', timeList='{}'".format(prefix, asPath, timeList, asPath, timeList))
 	elif (update['type'] == 'W'):
 		prefix = conn.escape_string(update['prefix'])
 		cursor.execute("DELETE FROM bgpPrefixUpdates WHERE prefix='{}'".format(prefix))
+		conn.commit()
 		#print("DELETE FROM bgpPrefixUpdates WHERE prefix='{}'".format(prefix))
-
-
-#cursor.execute("SELECT * FROM bgpPrefixUpdates")
-#for prefix, asPath , timeList in cursor:
-#	print("prefix: {}, aspath: {}, timelist: {}").format(prefix, asPath , timeList)

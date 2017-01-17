@@ -50,12 +50,6 @@ func checkErr(err error, msg string) {
 
 func ValidateBGPPath(ipString string) bool {
 
-	/*
-	// Testing code to test on a prefix that had a recent bgp update.
-	if ipString == "76.94.66.116" {
-		ipString = "95.173.159.1"
-	}*/
-
 	dbMap, _ := sa.NewDbMap(mysqlConnectURL, 1)
 	//var bgpUpdate sa.BGPUpdate
 	for i := 24; i >= 8; i-- {
@@ -66,7 +60,6 @@ func ValidateBGPPath(ipString string) bool {
 		checkErr(err, "select failed")
 		if obj != nil {
 			bgpUpdate := obj.(*sa.BGPUpdate)
-			fmt.Println(fmt.Sprintf("non nil case triggered on route to %s", prefixString))
 
 			timeArray := strings.Split(bgpUpdate.Timelist, " ")
 			timeInt, _ := strconv.ParseInt(timeArray[0], 10, 64)
@@ -76,11 +69,9 @@ func ValidateBGPPath(ipString string) bool {
 			} else {
 				return true
 			}
-		} else {
-			fmt.Println(fmt.Sprintf("nil case on route to %s", prefixString))
 		}
 	}
-	return false
+	return true
 
 }
 
@@ -201,7 +192,8 @@ func (va *ValidationAuthorityImpl) resolveAndConstructDialer(ctx context.Context
 
 // Validation methods
 
-func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier core.AcmeIdentifier, path string, useTLS bool, input core.Challenge, httpProxy string) ([]byte, []core.ValidationRecord, *probs.ProblemDetails) {
+func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier core.AcmeIdentifier, path string, useTLS bool, input core.Challenge, 
+	httpProxy string) ([]byte, []core.ValidationRecord, *probs.ProblemDetails) {
 	challenge := input
 
 
@@ -252,8 +244,6 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 
 	if httpProxy != "" {
 		proxyUrl, _ := url.Parse(httpProxy)
-
-
 		tr = &http.Transport{
 		// Use a proxy
 			Proxy: http.ProxyURL(proxyUrl),
@@ -265,14 +255,6 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 		// We don't expect to make multiple requests to a client, so close
 		// connection immediately.
 			DisableKeepAlives: true,
-
-		// This is deprecated. DialContext is the preferred use. 
-		// This cannot be used with a proxy because of a hacky hard coded dialer implementation.
-		// Intercept Dial in order to connect to the IP address we
-		// select.
-		//Dial: dialer.Dial,
-
-
 		}
 	} else {
 		ip, _, _:= va.getAddr(ctx, host)
@@ -283,9 +265,6 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 		}
 		
 		tr = &http.Transport{
-		// Use a proxy
-			//Proxy: http.ProxyURL(proxyUrl),
-
 		// We are talking to a client that does not yet have a certificate,
 		// so we accept a temporary, invalid one.
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -460,15 +439,6 @@ func (va *ValidationAuthorityImpl) validateHTTP01(ctx context.Context, identifie
 	
 	path := fmt.Sprintf(".well-known/acme-challenge/%s", challenge.Token)
 
-	
-
-
-	// Henry's sample error. Should be removed for real usage.
-	if identifier.Value == "ec2.test-cert.tk" {
-		errString := fmt.Sprintf("THIS IS NOT A REAL ERROR. The domain requested was ec2.test-cert.tk. This error is inserted as a test. Remove for production. Identifier: %s", identifier)
-		va.log.Info(fmt.Sprintf("%s for %s", errString, identifier))
-		return nil, probs.Unauthorized(errString)
-	}
 
 	var finalValidationRecords []core.ValidationRecord
 
