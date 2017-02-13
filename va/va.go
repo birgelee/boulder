@@ -62,7 +62,7 @@ func ValidateBGPPath(ipString string) bool {
 			bgpUpdate := obj.(*sa.BGPUpdate)
 
 			timeArray := strings.Split(bgpUpdate.Timelist, " ")
-			timeInt, _ := strconv.ParseInt(timeArray[0], 10, 64)
+			timeInt, _ := strconv.ParseInt(timeArray[len(timeArray) - 1], 10, 64)
 			fmt.Println(fmt.Sprintf("int time %d, unix now time %d.", timeInt, time.Now().Unix()))
 			if timeInt > time.Now().Unix() - 345600 {
 				return false
