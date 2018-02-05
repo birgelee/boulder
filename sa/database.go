@@ -195,8 +195,11 @@ func ReportDbConnCount(dbMap *gorp.DbMap, statter metrics.Scope) {
 
 type BGPUpdate struct {
     Prefix      string `db:"prefix"`
-    Aspath 		string `db:"asPath"`
-    Timelist    string `db:"timeList"`
+    Aspath 		sql.NullString `db:"asPath"`
+    Timelist    sql.NullString `db:"timeList"`
+    UpdateTime    int `db:"updateTime"`
+    PreviousASPath    sql.NullString `db:"previousASPath"`
+    AddedTime    sql.NullInt64 `db:"addedTime"`
 }
 
 

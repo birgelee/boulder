@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+#Fhis file is designed to be included as a general purpose module to read a bgp stream.
+
+
 # remove for production
 #stream.add_filter('prefix', '184.164.226.0/23')
 
@@ -19,13 +22,21 @@ stream = BGPStream()
 rec = BGPRecord()
 elem = None
 # configure the stream to retrieve Updates from the route-views listener.
-stream.add_filter('collector', 'route-views.sg')
+stream.add_filter('collector', 'route-views2')
 stream.add_filter('record-type','updates') # here we collect updates. This could be changed to ribs to instead acquire periodic snapshots of the RIBs.
 # getting updates only from one peer gives us only the perferred route of this peer and no rejected routes.
-stream.add_filter('peer-asn', '24482')
+stream.add_filter('peer-asn', '3356')
 # select the time interval to process: 0 means continue to process live updates. - 345600 allows us to process a 4 day backlog of updates
-stream.add_interval_filter(int(time.time()) - 345600, 0)
+#stream.add_interval_filter(int(time.time()) - 345600, 0)
+#stream.add_interval_filter(1486853150, 0)
+#to perform the cirtificate experiment, process a 1 month backlog of bgp updates.
+#stream.add_interval_filter(1487214969 - 2592000, 1487214969)
+#Starting the programm part way through
+# Process a 1 day backlog from time script starts.
 
+#stream.add_interval_filter(int(time.time()) - 86400, 0)
+# DB currently includes routes up to 1517835074 with 1 day backlog.
+stream.add_interval_filter(1517835074, 0)
 # start the stream
 stream.start()
 

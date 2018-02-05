@@ -56,19 +56,78 @@ func ValidateBGPPath(ipString string) bool {
 
 		_, cidr, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", ipString, i))
 		prefixString := cidr.String()
+	
+		if dbMap == nil {
+			fmt.Println("dbMap was null. SQL login likely not correct.")
+		}
+
 		obj, err := dbMap.Get(sa.BGPUpdate{}, prefixString)
 		checkErr(err, "select failed")
 		if obj != nil {
 			bgpUpdate := obj.(*sa.BGPUpdate)
 
-			timeArray := strings.Split(bgpUpdate.Timelist, " ")
+			// Check for the case of the withdrawn route.
+			if !bgpUpdate.Aspath.Valid {
+				continue
+			}
+
+			currentASPath := bgpUpdate.Aspath.String
+			var effectiveAddedTime int64 = 0
+
+			if bgpUpdate.PreviousASPath.Valid && bgpUpdate.PreviousASPath.String == currentASPath {
+				effectiveAddedTime = bgpUpdate.AddedTime.Int64
+			}
+
+			timeArray := strings.Split(bgpUpdate.Timelist.String, " ")
+
+			// Set our thresholds (should move to config file).
+			var thresholdPrefixAge int64 = 21600
+			var thresholdOriginAge int64 = 21600
+			var thresholdProviderAge int64 = 21600
+			var thresholdThirdHopAge int64 = 1800
+
+
+			nowTime := time.Now().Unix()
+
+			// Check prefix age.
 			timeInt, _ := strconv.ParseInt(timeArray[len(timeArray) - 1], 10, 64)
-			fmt.Println(fmt.Sprintf("int time %d, unix now time %d.", timeInt, time.Now().Unix()))
-			if timeInt > time.Now().Unix() - 345600 {
+			if timeInt - effectiveAddedTime > nowTime - thresholdPrefixAge {
 				return false
-			} else {
+			}
+
+			// Check origin age.
+			timeInt, _ = strconv.ParseInt(timeArray[len(timeArray) - 2], 10, 64)
+			if timeInt - effectiveAddedTime > nowTime - thresholdOriginAge {
+				return false
+			}
+
+			// Check provider age.
+			if len(timeArray) - 3 < 0 {
 				return true
 			}
+			timeInt, _ = strconv.ParseInt(timeArray[len(timeArray) - 3], 10, 64)
+			if timeInt - effectiveAddedTime > nowTime - thresholdProviderAge {
+				return false
+			}
+
+			// Check 3rd hop age.
+			if len(timeArray) - 4 < 0 {
+				return true
+			}
+			timeInt, _ = strconv.ParseInt(timeArray[len(timeArray) - 4], 10, 64)
+			if timeInt - effectiveAddedTime > nowTime - thresholdThirdHopAge {
+				return false
+			}
+			// All ages passed thresholds.
+			return true
+
+
+			//fmt.Println(fmt.Sprintf("int time %d, unix now time %d.", timeInt, time.Now().Unix()))
+
+
+
+
+
 		}
 	}
 	return true
@@ -260,8 +319,8 @@ func (va *ValidationAuthorityImpl) fetchHTTP(ctx context.Context, identifier cor
 		ip, _, _:= va.getAddr(ctx, host)
 
 		if !ValidateBGPPath(ip.String()) {
-			va.log.Info(fmt.Sprintf("Detected suspicious BGP path to %s", ip.String()))
-			return nil, nil, probs.ConnectionFailure("Detected suspicious BGP path")
+			va.log.Info(fmt.Sprintf("Detected recent BGP path to %s. Please allow the last 3 AS level hops in the path to stabilize and try again.", ip.String()))
+			return nil, nil, probs.ConnectionFailure(fmt.Sprintf("Detected recent BGP path to %s. Please allow the last 3 AS level hops in the path to stabilize and try again.", ip.String()))
 		}
 		
 		tr = &http.Transport{

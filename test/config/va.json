@@ -21,7 +21,7 @@
         "rpcTimeout": "15s"
       }
     },
-    "proxyURLList": []
+    "proxyURLList": ["http://13.84.129.93:8888"]
   },
 
   "statsd": {
