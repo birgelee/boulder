@@ -1,3 +1,13 @@
+A BGP Aware Version of Boulder
+===================
+
+This is a fork of Boulder designed to mitigate the damage caused by BGP attacks. In addition to using multiple vantage points, it is equiped with a BGP monitoring system designed to not issue certificates based on suspicious BGP routes.
+
+To install, be sure to run the additional CREATE TABLE COMMANDS in the sql server to allow the BGP monitoring framework to function.
+
+BGPStream by CAIDA also must be installed in the docker container with Boulder. Then, execute pytho process_bgp.py as a background command to continually populate the database with new BGP data.
+
+
 Boulder - An ACME CA
 ====================
 
