@@ -35,8 +35,9 @@ stream.add_filter('peer-asn', '3356')
 # Process a 1 day backlog from time script starts.
 
 #stream.add_interval_filter(int(time.time()) - 86400, 0)
-# DB currently includes routes up to 1517835074 with 1 day backlog.
-stream.add_interval_filter(1517835074, 0)
+# Old DB was up to 1517882393 with 1 day backlog.
+# New DB starting at 1517826431
+stream.add_interval_filter(1517826431, 0)
 # start the stream
 stream.start()
 
@@ -56,12 +57,13 @@ def fetchNextUpdate():
 	global elem, rec
 	if (elem):
 		res = {'time': rec.time, 'prefix': elem.fields['prefix'] if 'prefix' in elem.fields else None, 
-		'type': elem.type, 'as-path': elem.fields['as-path'] if 'as-path' in elem.fields else None}
+		'type': elem.type, 'as-path': (elem.fields['as-path'] + ' 0') if 'as-path' in elem.fields else None}
 		elem = rec.get_next_elem()
 		return res
 	else:
 		if nextUpdateExists():
-			res = {'time': rec.time, 'prefix': elem.fields['prefix'], 'type': elem.type, 'as-path': elem.fields['as-path']}
+			res = {'time': rec.time, 'prefix': elem.fields['prefix'] if 'prefix' in elem.fields else None, 
+			'type': elem.type, 'as-path': (elem.fields['as-path'] + ' 0') if 'as-path' in elem.fields else None}
 			elem = rec.get_next_elem()
 			return res
 		else:

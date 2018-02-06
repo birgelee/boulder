@@ -8,6 +8,8 @@ CREATE USER IF NOT EXISTS 'va'@'%' IDENTIFIED BY 'vauserpass';
 GRANT ALL PRIVILEGES ON *.* TO 'va'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 
+SET @@GLOBAL.wait_timeout=31536000;
+
 use boulder_sa_integration
 CREATE TABLE IF NOT EXISTS bgpPrefixUpdates
 (
